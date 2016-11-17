@@ -1,15 +1,21 @@
 branches:
   only:
   - master
+  - travis-experiments
 
 language: objective-c
 os: osx
 osx_image: xcode8.1
 env:
   - scheme='Siesta macOS' platform='OS X'
-  - scheme='Siesta iOS' platform='iOS Simulator,OS=10.2,name=iPhone SE'
-  - scheme='Siesta iOS' platform='iOS Simulator,OS=9.3,name=iPhone 6'
-  - scheme='Siesta iOS' platform='iOS Simulator,OS=8.1,name=iPhone 4s'
+  - scheme='Siesta iOS'   platform='iOS Simulator' ios_version='10.2' ios_device='iPhone SE'
+  - scheme='Siesta iOS'   platform='iOS Simulator' ios_version='9.3'  ios_device='iPhone 6'
+  - scheme='Siesta iOS'   platform='iOS Simulator' ios_version='8.1'  ios_device='iPhone 4s'
+
+before_install: |
+  export IOS_SIMULATOR_UDID=`instruments -s devices | grep "$ios_device ($ios_version" | awk -F '[ ]' '{print $4}' | awk -F '[\[]' '{print $2}' | sed 's/.$//'`
+  echo "Prelaunching iOS simulator with UDID $IOS_SIMULATOR_UDID"
+  open -a "simulator" --args -CurrentDeviceUDID $IOS_SIMULATOR_UDID
 
 script: |
   # ------ Certificates ------
@@ -58,13 +64,17 @@ script: |
 
   # ------ Project build (at last!) ------
 
+  if [[ "$platform" == "iOS Simulator" ]]; then
+    platform="$platform,OS=$ios_version,name=$ios_device"
+  fi
+
   echo
   echo —————— Running tests for $platform ...
   echo
 
   Siesta_DelayAfterEachSpec=1 \
   Siesta_TestMultipleNetworkProviders=1 \
-  xcodebuild test \
+  travis_retry xcodebuild test \
       -project Siesta.xcodeproj \
       -scheme "$scheme" \
       -destination "platform=$platform" \
